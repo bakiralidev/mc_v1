@@ -1,0 +1,207 @@
+'use client';
+
+import { useRef, useState, useEffect, useMemo } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
+import { Text } from '@react-three/drei';
+import * as THREE from 'three';
+import socket from '@/utils/socket';
+import VoxelCharacter from './VoxelCharacter';
+
+interface PlayerProps {
+  myUserId: string;
+  matchId: string;
+  initialPos: [number, number, number];
+  roleId: string;
+}
+
+export default function Player({ myUserId, matchId, initialPos, roleId }: PlayerProps) {
+  const groupRef = useRef<THREE.Group>(null);
+  const { camera, scene } = useThree();
+  const [keys, setKeys] = useState<Record<string, boolean>>({});
+  const [isMoving, setIsMoving] = useState(false);
+  const [animation, setAnimation] = useState('idle');
+  const [hp, setHp] = useState(100);
+
+  const speed = 0.18;
+
+  const stats = useMemo(() => {
+    switch(roleId) {
+      case 'warrior': return { damage: 20, range: 2.5, cooldown: 600 };
+      case 'archer': return { damage: 12, range: 12, cooldown: 800 };
+      case 'mage': return { damage: 25, range: 10, cooldown: 1200 }; // Higher damage for AOE
+      case 'healer': return { damage: -25, range: 6, cooldown: 1200 };
+      default: return { damage: 10, range: 3, cooldown: 500 };
+    }
+  }, [roleId]);
+
+  const lastAttack = useRef(0);
+
+  const handleAttack = (event?: any) => {
+    const now = performance.now();
+    if (now - lastAttack.current < stats.cooldown || hp <= 0) return;
+
+    // Mage special fireball targeting
+    if (roleId === 'mage' && event instanceof MouseEvent) {
+       console.log("Mage attempting to fire...");
+       const raycaster = new THREE.Raycaster();
+       const mouse = new THREE.Vector2(
+          (event.clientX / window.innerWidth) * 2 - 1,
+          -(event.clientY / window.innerHeight) * 2 + 1
+       );
+       raycaster.setFromCamera(mouse, camera);
+       const intersects = raycaster.intersectObjects(scene.children, true);
+       let groundIntersect = intersects.find(i => i.object.name === 'maze_floor');
+       
+       // Fallback: if no floor named maze_floor, use first intersect that is low to ground
+       if (!groundIntersect) groundIntersect = intersects.find(i => i.point.y < 0.5);
+
+       if (groundIntersect) {
+          console.log("Ground hit! Firing fireball to:", groundIntersect.point);
+          lastAttack.current = now;
+          setAnimation('attack');
+          setTimeout(() => setAnimation('idle'), 400);
+
+          socket.emit('fireball_fired', {
+             lobbyCode: matchId,
+             userId: myUserId,
+             startPos: [groupRef.current!.position.x, 1.5, groupRef.current!.position.z],
+             targetPos: [groundIntersect.point.x, 0.1, groundIntersect.point.z]
+          });
+          return;
+       } else {
+          console.warn("Mage attack: No ground intersection found!");
+       }
+    }
+
+    // Standard Attack for other classes
+    lastAttack.current = now;
+    setAnimation('attack');
+    setTimeout(() => setAnimation('idle'), 300);
+
+    socket.emit('player_attack', { lobbyCode: matchId, userId: myUserId, roleId: roleId });
+
+    // Melee/Heal detection
+    scene.traverse((obj) => {
+      if (obj.name === 'remote_player') {
+        const dist = groupRef.current!.position.distanceTo(obj.position);
+        if (dist <= stats.range) {
+          socket.emit('player_damaged', {
+            lobbyCode: matchId,
+            victimId: obj.userData.userId,
+            attackerId: myUserId,
+            damage: stats.damage
+          });
+        }
+      }
+    });
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      setKeys(prev => ({ ...prev, [e.code]: true }));
+      if (e.code === 'Space') handleAttack();
+    };
+    const handleKeyUp = (e: KeyboardEvent) => setKeys(prev => ({ ...prev, [e.code]: false }));
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button === 0) handleAttack(e);
+    };
+
+    const handleHpUpdate = (hpData: any) => {
+      if (hpData.userId === myUserId) {
+        setHp(prev => {
+          const newHp = Math.max(0, prev - (hpData.damage || 0));
+          if (newHp <= 0 && prev > 0) {
+            socket.emit('player_died', { lobbyCode: matchId, victimId: myUserId, attackerId: hpData.attackerId });
+          }
+          return newHp;
+        });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('mousedown', handleMouseDown);
+    socket.on('hp_update', handleHpUpdate);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('mousedown', handleMouseDown);
+      socket.off('hp_update', handleHpUpdate);
+    };
+  }, [roleId, matchId, myUserId, hp]);
+
+  useFrame(() => {
+    if (!groupRef.current || hp <= 0) return;
+
+    const move = new THREE.Vector3(0, 0, 0);
+    if (keys['KeyW']) move.z -= 1;
+    if (keys['KeyS']) move.z += 1;
+    if (keys['KeyA']) move.x -= 1;
+    if (keys['KeyD']) move.x += 1;
+
+    setIsMoving(move.length() > 0);
+
+    if (move.length() > 0) {
+      move.normalize().multiplyScalar(speed);
+      groupRef.current.position.add(move);
+      const angle = Math.atan2(move.x, move.z);
+      groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, angle, 0.2);
+
+      socket.emit('player_update', {
+        lobbyCode: matchId,
+        userId: myUserId,
+        roleId: roleId,
+        position: [groupRef.current.position.x, groupRef.current.position.y, groupRef.current.position.z],
+        rotation: [0, groupRef.current.rotation.y, 0]
+      });
+    }
+
+    const targetCamPos = new THREE.Vector3(
+      groupRef.current.position.x + 4, 
+      groupRef.current.position.y + 6, 
+      groupRef.current.position.z + 4
+    );
+    camera.position.lerp(targetCamPos, 0.08);
+    camera.lookAt(groupRef.current.position);
+  });
+
+  const getRoleColor = () => {
+    switch(roleId) {
+      case 'warrior': return '#ef4444';
+      case 'archer': return '#22c55e';
+      case 'healer': return '#3b82f6';
+      case 'mage': return '#a855f7';
+      default: return '#ffffff';
+    }
+  };
+
+  return (
+    <group ref={groupRef} position={initialPos}>
+      <VoxelCharacter roleId={roleId} animation={animation} isMoving={isMoving} />
+      
+      {/* HP Bar */}
+      <group position={[0, 2.2, 0]}>
+         <mesh>
+            <planeGeometry args={[1, 0.1]} />
+            <meshBasicMaterial color="#333" />
+         </mesh>
+         <mesh position={[-(1 - hp/100)/2, 0, 0.01]}>
+            <planeGeometry args={[hp/100, 0.1]} />
+            <meshBasicMaterial color={hp > 30 ? '#22c55e' : '#ef4444'} />
+         </mesh>
+      </group>
+
+      <mesh position={[0, -0.4, 0]} rotation={[-Math.PI/2, 0, 0]}>
+         <ringGeometry args={[0.6, 0.7, 32]} />
+         <meshBasicMaterial color={getRoleColor()} transparent opacity={0.4} side={THREE.DoubleSide} />
+      </mesh>
+
+      <Text position={[0, 2.5, 0]} fontSize={0.25} color="white">
+        YOU
+      </Text>
+
+      <pointLight position={[0, 1.5, 0]} intensity={1} color={getRoleColor()} distance={5} />
+    </group>
+  );
+}

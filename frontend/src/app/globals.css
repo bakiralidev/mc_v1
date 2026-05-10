@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #6366f1;
+  --color-accent: #10b981;
+  --color-surface: rgba(15, 23, 42, 0.6);
+  --color-game-gold: #fbbf24;
+  --color-game-blue: #3b82f6;
+  --color-game-stone: #1e293b;
+  --color-game-dark: #020617;
+  
+  --font-game: "Outfit", sans-serif;
+  
+  --background-image-game-gradient: radial-gradient(circle at 50% 50%, rgba(30, 41, 59, 1) 0%, #020617 100%);
+}
+
+:root {
+  --background: #020617;
+  --text: #f8fafc;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--text);
+  overflow-x: hidden;
+}
+
+/* Custom Game Styles */
+@layer components {
+  .game-panel {
+    @apply bg-surface backdrop-blur-xl border border-white/10 rounded-[32px] shadow-2xl;
+  }
+
+  .game-btn-gold {
+    @apply bg-gradient-to-b from-[#fbbf24] to-[#d97706] text-black font-black uppercase tracking-widest px-8 py-4 rounded-xl border-b-4 border-[#92400e] hover:brightness-110 active:border-b-0 active:translate-y-[4px] transition-all duration-75;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.4);
+  }
+
+  .game-btn-blue {
+    @apply bg-gradient-to-b from-[#3b82f6] to-[#1d4ed8] text-white font-bold uppercase tracking-wider px-8 py-3 rounded-xl border-b-4 border-[#1e40af] hover:brightness-110 active:border-b-0 active:translate-y-[4px] transition-all duration-75;
+  }
+
+  .game-card-role {
+    @apply relative overflow-hidden rounded-2xl border-2 transition-all duration-300 hover:scale-105;
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 30px rgba(99, 102, 241, 0.3);
+  }
+}
+
+@keyframes pulse-gold {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.2); }
+}
+
+.animate-pulse-gold {
+  animation: pulse-gold 2s infinite ease-in-out;
+}
