@@ -64,6 +64,7 @@ model Map {
   height       Int
   max_players  Int             @default(12)
   is_active    Boolean         @default(true)
+  grid         Json?
   created_at   DateTime        @default(now())
   updated_at   DateTime        @updatedAt
   spawn_points MapSpawnPoint[]
@@ -98,6 +99,11 @@ model Task {
   matches       Match[]
 }
 
+enum MatchMode {
+  MULTIPLAYER_SURVIVAL
+  SOLO_CHALLENGE
+}
+
 model Match {
   id                 String        @id @default(uuid())
   lobby_code         String        @unique
@@ -105,6 +111,7 @@ model Match {
   map_id             String
   task_id            String
   status             MatchStatus   @default(WAITING)
+  mode               MatchMode     @default(MULTIPLAYER_SURVIVAL)
   min_players        Int           @default(2)
   min_teams          Int           @default(2)
   max_players        Int           @default(12)
@@ -155,6 +162,7 @@ model MatchPlayer {
   role_id               String?
   status                MatchPlayerStatus @default(WAITING)
   is_ready              Boolean           @default(false)
+  spawn_pos             Json?
   kills                 Int               @default(0)
   deaths                Int               @default(0)
   assists               Int               @default(0)

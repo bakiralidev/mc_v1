@@ -20,12 +20,12 @@ export default function HomePage() {
 
   useEffect(() => {
     setMounted(true);
-    if (token && !user) {
+    if (token) {
       api.get('/auth/me')
         .then(res => setUser(res.data))
         .catch(() => {});
     }
-  }, [token, user, setUser]);
+  }, [token, setUser]);
 
   return (
     <main className="relative h-screen w-screen bg-game-dark overflow-hidden font-game select-none">

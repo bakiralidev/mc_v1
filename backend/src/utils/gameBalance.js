@@ -106,12 +106,37 @@ const GAME_BALANCE = {
     },
   },
 
+  solo: {
+    boss: {
+      hp: 300,
+      damage: 18,
+      attackRange: 3.5,
+      cooldownMs: 1800,
+      speed: 3.2,
+      detectionRange: 20,
+      scale: 3
+    },
+    minion: {
+      hp: 30,
+      damage: 1,
+      attackRange: 2.0,
+      cooldownMs: 800,
+      speed: 4.2,
+      detectionRange: 14,
+      spawnIntervalMs: 25000,
+      maxActive: 6
+    }
+  },
+
   xp: {
     kill: 10,
     assist: 5,
     damagePerXp: 100,
     healPerXp: 100,
-    survivalPerMinute: 1,
+    survivalPerMinute: 3, // Update as per user request
+    bossKill: 100,
+    soloSurvival: 60,
+    minionKill: 2,
     winnerObjective: 20,
     teamRewardTotal: 100,
   }

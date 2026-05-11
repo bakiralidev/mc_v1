@@ -114,5 +114,27 @@ export const GAME_BALANCE = {
     survivalPerMinute: 1,
     winnerObjective: 20,
     teamRewardTotal: 100,
+    soloSurvival: 50,
+    bossKill: 100
+  },
+
+  solo: {
+    boss: {
+      hp: 300,
+      damage: 10,
+      speed: 4,
+      attackRange: 2.5,
+      cooldownMs: 1500,
+      chaseDistance: 15,
+    },
+    minion: {
+      hp: 30,
+      damage: 1,
+      speed: 5.5,
+      attackRange: 1.8,
+      cooldownMs: 1000,
+      spawnIntervalMs: 25000,
+      maxActive: 6,
+    }
   }
 };

@@ -1,22 +1,17 @@
 require('dotenv').config();
-const { PrismaClient } = require('@prisma/client');
-const { PrismaPg } = require('@prisma/adapter-pg');
-const { Pool } = require('pg');
+const prisma = require('../src/utils/prisma');
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
-
-async function main() {
-  const maps = await prisma.map.findMany({
-    include: { spawn_points: true }
-  });
-  console.log(JSON.stringify(maps, null, 2));
-  await prisma.$disconnect();
-  await pool.end();
+async function checkMaps() {
+    try {
+        const maps = await prisma.map.findMany({
+            include: { spawn_points: true }
+        });
+        console.log(JSON.stringify(maps, null, 2));
+    } catch (e) {
+        console.error(e);
+    } finally {
+        await prisma.$disconnect();
+    }
 }
 
-main().catch(e => {
-  console.error(e);
-  process.exit(1);
-});
+checkMaps();

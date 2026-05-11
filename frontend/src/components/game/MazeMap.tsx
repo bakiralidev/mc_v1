@@ -16,22 +16,23 @@ export default function MazeMap({ grid, width, height }: MazeMapProps) {
     return BASE_MAZE_25;
   }, [grid]);
 
-  // If we use BASE_MAZE_25, each cell is 4 units wide to cover 100x100
-  const cellScale = grid?.length > 0 ? 1 : 4;
+  const cellScale = 4;
+  const worldWidth = width * cellScale;
+  const worldHeight = height * cellScale;
 
   return (
     <group>
       {/* Floor - Dark Stone Material */}
-      <mesh name="maze_floor" rotation={[-Math.PI / 2, 0, 0]} position={[width / 2 - 0.5, 0, height / 2 - 0.5]}>
-        <planeGeometry args={[width, height]} />
+      <mesh name="maze_floor" rotation={[-Math.PI / 2, 0, 0]} position={[worldWidth / 2 - cellScale / 2, 0, worldHeight / 2 - cellScale / 2]}>
+        <planeGeometry args={[worldWidth, worldHeight]} />
         <meshStandardMaterial color="#020617" roughness={0.8} metalness={0.2} />
       </mesh>
 
       {/* Grid Floor texture effect */}
-      <gridHelper args={[width, 25, 0x1e293b, 0x0f172a]} position={[width/2-0.5, 0.01, height/2-0.5]} />
+      <gridHelper args={[worldWidth, 50, 0x1e293b, 0x0f172a]} position={[worldWidth/2 - cellScale/2, 0.01, worldHeight/2 - cellScale/2]} />
 
       {/* Central Hub Glow */}
-      <pointLight position={[width/2, 2, height/2]} intensity={2} color="#3b82f6" distance={20} />
+      <pointLight position={[worldWidth/2, 2, worldHeight/2]} intensity={2} color="#3b82f6" distance={worldWidth} />
 
       {/* Walls Rendering */}
       {effectiveGrid.map((row, z) => 

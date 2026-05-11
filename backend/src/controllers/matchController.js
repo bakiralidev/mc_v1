@@ -4,7 +4,7 @@ const prisma = require('../utils/prisma');
 // @route   POST /api/match/:id/finish
 const finishMatch = async (req, res) => {
     const { id } = req.params;
-    const { winningTeamId } = req.body;
+    const { winningTeamId } = req.body || {};
 
     try {
         const match = await prisma.match.findUnique({

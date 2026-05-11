@@ -100,7 +100,7 @@ const createLobby = async (req, res) => {
 // @desc    Join a lobby by code
 // @route   POST /api/lobby/join
 const joinLobby = async (req, res) => {
-    const { code } = req.body;
+    const { code } = req.body || {};
     const userId = req.user.id;
 
     try {
@@ -194,7 +194,7 @@ const getLobbyDetails = async (req, res) => {
 // @route   PATCH /api/lobby/:code/select
 const updateSelection = async (req, res) => {
     const { code } = req.params;
-    const { role_id, team_id } = req.body;
+    const { role_id, team_id } = req.body || {};
     const userId = req.user.id;
 
     try {
@@ -270,7 +270,7 @@ const toggleReady = async (req, res) => {
 // @route   POST /api/lobby/:code/teams
 const createTeam = async (req, res) => {
     const { code } = req.params;
-    const { name, color } = req.body;
+    const { name, color } = req.body || {};
     const userId = req.user.id;
 
     try {
@@ -361,6 +361,7 @@ const leaveTeam = async (req, res) => {
 // @route   POST /api/lobby/:code/start
 const startMatch = async (req, res) => {
     const { code } = req.params;
+    const { mode } = req.body || {}; // MULTIPLAYER_SURVIVAL or SOLO_CHALLENGE
     const userId = req.user.id;
 
     try {
@@ -368,7 +369,10 @@ const startMatch = async (req, res) => {
             where: { lobby_code: code },
             include: { 
                 match_players: {
-                    include: { user: true }
+                    include: { 
+                        user: true,
+                        role: true
+                    }
                 },
                 map: {
                     include: { spawn_points: true }
@@ -377,33 +381,47 @@ const startMatch = async (req, res) => {
         });
 
         if (!match) return res.status(404).json({ message: 'Lobby not found' });
+        console.log(`Starting match for lobby ${code}. Players: ${match.match_players.length}`);
 
-        // 1. Faqat Admin (yaratuvchi) boshlay oladi
         if (match.created_by_user_id !== userId) {
             return res.status(403).json({ message: 'Only lobby creator can start the match' });
         }
 
-        // 2. Kamida 2 ta o'yinchi bo'lishi kerak (MVP sharti)
-        if (match.match_players.length < 2) {
-            return res.status(400).json({ message: 'At least 2 players required to start' });
+        const playerCount = match.match_players.length;
+        const finalMode = mode || (playerCount === 1 ? 'SOLO_CHALLENGE' : 'MULTIPLAYER_SURVIVAL');
+        console.log(`Decided mode: ${finalMode}`);
+
+        if (finalMode === 'MULTIPLAYER_SURVIVAL' && playerCount < 2) {
+            return res.status(400).json({ message: 'At least 2 players required for Multiplayer Survival' });
         }
 
-        // 3. Hamma "Ready" ekanligini tekshiramiz
         const allReady = match.match_players.every(p => p.is_ready);
         if (!allReady) {
             return res.status(400).json({ message: 'All players must be ready to start' });
         }
 
-        // 4. Match statusini ACTIVE qilamiz
+        console.log('Updating match in DB...');
+        // Update Match status and mode
         await prisma.match.update({
             where: { id: match.id },
-            data: { status: 'ACTIVE' }
+            data: { 
+                status: 'ACTIVE',
+                mode: finalMode,
+                started_at: new Date()
+            }
         });
+        console.log('Match updated in DB.');
 
-        // 5. O'yinchilarga spawn pointlarni biriktiramiz
-        // Har bir o'yinchiga xarita spawn pointlaridan birini beramiz
-        const playerStartData = match.match_players.map((player, index) => {
+        const playerStartData = await Promise.all(match.match_players.map(async (player, index) => {
             const spawnPoint = match.map.spawn_points[index % match.map.spawn_points.length];
+            const spawnPos = [spawnPoint.position_x, spawnPoint.position_y, spawnPoint.position_z];
+            
+            // Save to DB so it persists on fetch
+            await prisma.matchPlayer.update({
+                where: { id: player.id },
+                data: { spawn_pos: spawnPos }
+            });
+
             return {
                 user_id: player.user_id,
                 username: player.user.username,
@@ -413,33 +431,19 @@ const startMatch = async (req, res) => {
                     z: spawnPoint.position_z
                 }
             };
-        });
+        }));
 
-        // 6. Socket orqali hamma o'yinchilarni o'yinga o'tkazamiz
+        console.log('Emitting match_start event...');
         req.io.to(`lobby_${code}`).emit('match_start', {
             match_id: match.id,
             map: match.map,
+            mode: finalMode,
             players: playerStartData
         });
 
-        // Auto-end match after 5 minutes (300s)
-        setTimeout(() => {
-            const result = {
-                winner_team_id: 'team_alpha',
-                is_winner: true,
-                xp_earned: 450,
-                kills: 0,
-                deaths: 0,
-                healing: 0,
-                team_name: 'Team Alpha',
-                match_duration: '05:00'
-            };
-            req.io.to(`lobby_${code}`).emit('match_ended', result);
-            console.log(`Match ${code} automatically ended.`);
-        }, 300000);
-
-        res.json({ message: 'Match started successfully', players: playerStartData });
+        res.json({ message: 'Match started successfully', mode: finalMode, players: playerStartData });
     } catch (error) {
+        console.error('Start Match Error:', error);
         res.status(500).json({ message: 'Failed to start match', error: error.message });
     }
 };

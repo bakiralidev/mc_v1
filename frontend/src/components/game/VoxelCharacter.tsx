@@ -56,7 +56,7 @@ const getWeaponVoxels = (roleId: string) => {
   return v;
 };
 
-// ... (Other generators from previous Lab logic) ...
+// ... (Other generators) ...
 const getRoleHead = (roleId: string) => {
   const v: { pos: [number, number, number], color: string }[] = [];
   const skin = roleId === 'warrior' || roleId === 'archer' ? '#d4a373' : '#fef3c7';
@@ -98,7 +98,7 @@ const getRoleBody = (roleId: string) => {
   return v;
 };
 
-export default function VoxelCharacter({ roleId, animation = 'idle', isMoving = false }: { roleId: string, animation?: string, isMoving?: boolean }) {
+export default function VoxelCharacter({ roleId, animation = 'idle', isMoving = false, visible = true }: { roleId: string, animation?: string, isMoving?: boolean, visible?: boolean }) {
   const head = useMemo(() => getRoleHead(roleId), [roleId]);
   const body = useMemo(() => getRoleBody(roleId), [roleId]);
   const arm = useMemo(() => getLimbVoxels(roleId === 'warrior' ? '#3f3f46' : roleId === 'mage' ? '#5b21b6' : roleId === 'archer' ? '#16a34a' : '#bfdbfe', 4, 14, 4), [roleId]);
@@ -117,38 +117,38 @@ export default function VoxelCharacter({ roleId, animation = 'idle', isMoving = 
     const t = state.clock.getElapsedTime();
     
     // Default Positions
-    headRef.current!.position.y = 1.4;
-    bodyRef.current!.position.y = 0.7;
-    lArmRef.current!.position.y = 0.7;
-    rArmRef.current!.position.y = 0.7;
-    lLegRef.current!.position.y = 0;
-    rLegRef.current!.position.y = 0;
+    if (headRef.current) headRef.current.position.y = 1.4;
+    if (bodyRef.current) bodyRef.current.position.y = 0.7;
+    if (lArmRef.current) lArmRef.current.position.y = 0.7;
+    if (rArmRef.current) rArmRef.current.position.y = 0.7;
+    if (lLegRef.current) lLegRef.current.position.y = 0;
+    if (rLegRef.current) rLegRef.current.position.y = 0;
     
-    headRef.current!.rotation.set(0,0,0);
-    lArmRef.current!.rotation.set(0,0,0);
-    rArmRef.current!.rotation.set(0,0,0);
-    lLegRef.current!.rotation.set(0,0,0);
-    rLegRef.current!.rotation.set(0,0,0);
+    if (headRef.current) headRef.current.rotation.set(0,0,0);
+    if (lArmRef.current) lArmRef.current.rotation.set(0,0,0);
+    if (rArmRef.current) rArmRef.current.rotation.set(0,0,0);
+    if (lLegRef.current) lLegRef.current.rotation.set(0,0,0);
+    if (rLegRef.current) rLegRef.current.rotation.set(0,0,0);
 
     // Walking / Movement Animation
     if (isMoving) {
       const walkSpeed = 12;
       const walkRange = 0.6;
-      lLegRef.current!.rotation.x = Math.sin(t * walkSpeed) * walkRange;
-      rLegRef.current!.rotation.x = -Math.sin(t * walkSpeed) * walkRange;
-      lArmRef.current!.rotation.x = -Math.sin(t * walkSpeed) * walkRange;
-      rArmRef.current!.rotation.x = Math.sin(t * walkSpeed) * walkRange;
+      if (lLegRef.current) lLegRef.current.rotation.x = Math.sin(t * walkSpeed) * walkRange;
+      if (rLegRef.current) rLegRef.current.rotation.x = -Math.sin(t * walkSpeed) * walkRange;
+      if (lArmRef.current) lArmRef.current.rotation.x = -Math.sin(t * walkSpeed) * walkRange;
+      if (rArmRef.current) rArmRef.current.rotation.x = Math.sin(t * walkSpeed) * walkRange;
     }
 
     // Special Combat Animations
-    if (animation === 'attack') {
+    if (animation === 'attack' && rArmRef.current) {
       const atk = Math.sin(t * 20);
-      rArmRef.current!.rotation.x = -1.5 + atk;
+      rArmRef.current.rotation.x = -1.5 + atk;
     }
   });
 
   return (
-    <group scale={0.5} position={[0, -0.5, 0]}>
+    <group scale={0.5} position={[0, -0.5, 0]} visible={visible}>
       <group ref={headRef} position={[0, 1.4, 0]}><VoxelGroup voxels={head}/></group>
       <group ref={bodyRef} position={[0, 0.7, 0]}><VoxelGroup voxels={body}/></group>
       <group ref={lArmRef} position={[-0.4, 0.7, 0]}><VoxelGroup voxels={arm}/></group>

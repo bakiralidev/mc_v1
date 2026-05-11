@@ -352,16 +352,38 @@ export default function LobbyPage() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 20 }}
-                      className="pt-6 border-t border-white/5"
+                      className="pt-6 border-t border-white/5 space-y-4"
                     >
-                       <button 
-                          onClick={handleStartMatch}
-                          className="game-btn-gold w-full h-[80px] flex items-center justify-center gap-4 group shadow-[0_15px_40px_rgba(251,191,36,0.2)]"
-                       >
-                          <Play size={24} className="fill-current" />
-                          <span className="text-2xl font-black italic tracking-widest">START MATCH</span>
-                       </button>
-                       <p className="text-center mt-4 text-[10px] font-black text-game-gold/40 uppercase tracking-widest">All players must be ready</p>
+                       {currentMatch.match_players.length === 1 ? (
+                          <div className="space-y-4">
+                             <div className="p-4 bg-game-gold/10 border border-game-gold/20 rounded-2xl">
+                                <p className="text-[10px] font-black text-game-gold uppercase tracking-widest text-center">
+                                   Waiting for more players... or
+                                </p>
+                             </div>
+                             <button 
+                                onClick={() => handleStartMatch()}
+                                className="game-btn-gold w-full h-[80px] flex flex-col items-center justify-center group shadow-[0_15px_40px_rgba(251,191,36,0.2)]"
+                             >
+                                <div className="flex items-center gap-4">
+                                   <Sword size={24} className="text-black" />
+                                   <span className="text-xl font-black italic tracking-widest">SOLO CHALLENGE</span>
+                                </div>
+                                <span className="text-[8px] font-black text-black/60 uppercase tracking-widest">Survive 5m or defeat the Boss</span>
+                             </button>
+                          </div>
+                       ) : (
+                          <>
+                             <button 
+                                onClick={handleStartMatch}
+                                className="game-btn-gold w-full h-[80px] flex items-center justify-center gap-4 group shadow-[0_15px_40px_rgba(251,191,36,0.2)]"
+                             >
+                                <Play size={24} className="fill-current" />
+                                <span className="text-2xl font-black italic tracking-widest">START MATCH</span>
+                             </button>
+                             <p className="text-center mt-4 text-[10px] font-black text-game-gold/40 uppercase tracking-widest">All players must be ready</p>
+                          </>
+                       )}
                     </motion.div>
                   )}
                 </AnimatePresence>
