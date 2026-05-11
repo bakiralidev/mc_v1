@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
@@ -23,6 +23,12 @@ export default function RemotePlayer({ data, myTeamId }: RemotePlayerProps) {
   const groupRef = useRef<THREE.Group>(null);
   const [animation, setAnimation] = useState('idle');
   const [hp, setHp] = useState(100);
+  const [maxHp, setMaxHp] = useState(100);
+
+  const hpRatio = useMemo(() => {
+    const val = hp / (maxHp || 1);
+    return isNaN(val) ? 0 : Math.max(0.001, Math.min(1, val));
+  }, [hp, maxHp]);
 
   const isTeammate = data.teamId === myTeamId;
 
@@ -40,6 +46,7 @@ export default function RemotePlayer({ data, myTeamId }: RemotePlayerProps) {
       if (hpData.userId === data.userId) {
         // Use the exact HP value from the server
         setHp(hpData.hp);
+        if (hpData.maxHp) setMaxHp(hpData.maxHp);
       }
     };
 
@@ -47,6 +54,7 @@ export default function RemotePlayer({ data, myTeamId }: RemotePlayerProps) {
     const handleSync = (state: any) => {
       if (state?.players?.[data.userId]) {
         setHp(state.players[data.userId].hp);
+        if (state.players[data.userId].maxHp) setMaxHp(state.players[data.userId].maxHp);
       }
     };
 
@@ -88,10 +96,12 @@ export default function RemotePlayer({ data, myTeamId }: RemotePlayerProps) {
             <planeGeometry args={[1, 0.1]} />
             <meshBasicMaterial color="#333" />
          </mesh>
-         <mesh position={[-(1 - hp/100)/2, 0, 0.01]}>
-            <planeGeometry args={[hp/100, 0.1]} />
-            <meshBasicMaterial color={hp > 30 ? '#22c55e' : '#ef4444'} />
-         </mesh>
+         {hpRatio > 0.001 && (
+           <mesh position={[-(1 - hpRatio)/2, 0, 0.01]}>
+              <planeGeometry args={[hpRatio, 0.1]} />
+              <meshBasicMaterial color={hpRatio > 0.3 ? '#22c55e' : '#ef4444'} />
+           </mesh>
+         )}
       </group>
 
       <Text position={[0, 2.5, 0]} fontSize={0.2} color={isTeammate ? "#22c55e" : "#ef4444"}>

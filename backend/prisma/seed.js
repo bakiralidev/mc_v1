@@ -19,9 +19,16 @@ async function main() {
       description: 'Yaqin masofada jang qiladigan kuchli hujumchi.',
       base_hp: 120,
       base_damage: 25,
-      base_speed: 1.0,
-      attack_range: 2.0,
-      skill_config: { main_attack: 'sword_attack', skill: 'dash', cooldown: 5 }
+      base_speed: 5.0,
+      attack_range: 2.2,
+      skill_config: { 
+        main_attack: 'melee', 
+        skill: 'dash', 
+        cooldown: 5,
+        main_cooldown: 0.9,
+        dash_distance: 6,
+        dash_duration: 0.25
+      }
     },
     {
       key: 'archer',
@@ -29,9 +36,16 @@ async function main() {
       description: 'Uzoq masofadan hujum qiladigan mergan.',
       base_hp: 90,
       base_damage: 20,
-      base_speed: 1.2,
-      attack_range: 15.0,
-      skill_config: { main_attack: 'arrow_attack', skill: 'long_shot', cooldown: 6 }
+      base_speed: 5.8,
+      attack_range: 18.0,
+      skill_config: { 
+        main_attack: 'projectile', 
+        skill: 'long_shot', 
+        cooldown: 6,
+        main_cooldown: 1.1,
+        projectile_speed: 30,
+        projectile_radius: 0.18
+      }
     },
     {
       key: 'healer',
@@ -39,9 +53,16 @@ async function main() {
       description: 'Jamoani davolashga mo\'ljallangan yordamchi.',
       base_hp: 100,
       base_damage: 10,
-      base_speed: 1.1,
-      attack_range: 5.0,
-      skill_config: { main_attack: 'weak_attack', skill: 'heal', heal_amount: 20, cooldown: 8 }
+      base_speed: 5.3,
+      attack_range: 7.0,
+      skill_config: { 
+        main_attack: 'projectile', 
+        skill: 'heal', 
+        heal_amount: 25, 
+        cooldown: 8,
+        main_cooldown: 1.0,
+        heal_range: 8
+      }
     },
     {
       key: 'mage',
@@ -49,9 +70,17 @@ async function main() {
       description: 'Masofadan skill orqali hujum qiladigan sehrgar.',
       base_hp: 80,
       base_damage: 30,
-      base_speed: 1.0,
-      attack_range: 10.0,
-      skill_config: { main_attack: 'fireball', skill: 'area_blast', cooldown: 10 }
+      base_speed: 4.9,
+      attack_range: 12.0,
+      skill_config: { 
+        main_attack: 'projectile', 
+        skill: 'area_blast', 
+        cooldown: 10,
+        main_cooldown: 1.4,
+        projectile_speed: 18,
+        projectile_radius: 0.35,
+        area_radius: 5
+      }
     }
   ];
 

@@ -18,6 +18,8 @@ interface GameSceneProps {
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html } from '@react-three/drei';
+import { GAME_BALANCE } from '@/utils/gameBalance';
+
 
 export default function GameScene({ matchId, myUserId, matchData }: GameSceneProps) {
   const [remotePlayers, setRemotePlayers] = useState<any[]>([]);
@@ -87,8 +89,9 @@ export default function GameScene({ matchId, myUserId, matchData }: GameScenePro
 
   const handleFireballImpact = (fireball: any) => {
     if (fireball.userId === myUserId) {
-       const explosionRadius = 3.5;
-       const damage = 25;
+       const mageConfig = GAME_BALANCE.roles.mage;
+       const explosionRadius = mageConfig.skill.radius;
+       const damage = mageConfig.skill.damage;
 
        scene.traverse((obj) => {
           if (obj.name === 'remote_player') {

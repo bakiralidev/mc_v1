@@ -7,35 +7,18 @@ datasource db {
   provider = "postgresql"
 }
 
-enum MatchStatus {
-  WAITING
-  COUNTDOWN
-  ACTIVE
-  FINISHED
-  CANCELLED
-}
-
-enum MatchPlayerStatus {
-  WAITING
-  ALIVE
-  DEAD
-  LEFT
-  DISCONNECTED
-}
-
 model User {
-  id            String   @id @default(uuid())
-  username      String   @unique
-  email         String?  @unique
-  password_hash String?
-  is_guest      Boolean  @default(false)
-  avatar_url    String?
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
-
-  stats           PlayerStats?
-  match_players   MatchPlayer[]
+  id              String        @id @default(uuid())
+  username        String        @unique
+  email           String?       @unique
+  password_hash   String?
+  is_guest        Boolean       @default(false)
+  avatar_url      String?
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
   created_matches Match[]       @relation("LobbyCreator")
+  match_players   MatchPlayer[]
+  stats           PlayerStats?
 }
 
 model PlayerStats {
@@ -53,39 +36,36 @@ model PlayerStats {
   healing_done  Int      @default(0)
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
-
   user          User     @relation(fields: [user_id], references: [id])
 }
 
 model Role {
-  id           String   @id @default(uuid())
-  key          String   @unique
-  name         String
-  description  String?
-  base_hp      Int
-  base_damage  Int
-  base_speed   Float
-  attack_range Float
-  skill_config Json?
-  is_active    Boolean  @default(true)
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
-
+  id            String        @id @default(uuid())
+  key           String        @unique
+  name          String
+  description   String?
+  base_hp       Int
+  base_damage   Int
+  base_speed    Float
+  attack_range  Float
+  skill_config  Json?
+  is_active     Boolean       @default(true)
+  created_at    DateTime      @default(now())
+  updated_at    DateTime      @updatedAt
   match_players MatchPlayer[]
 }
 
 model Map {
-  id           String   @id @default(uuid())
+  id           String          @id @default(uuid())
   name         String
   description  String?
   seed         String
   width        Int
   height       Int
-  max_players  Int      @default(12)
-  is_active    Boolean  @default(true)
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
-
+  max_players  Int             @default(12)
+  is_active    Boolean         @default(true)
+  created_at   DateTime        @default(now())
+  updated_at   DateTime        @updatedAt
   spawn_points MapSpawnPoint[]
   matches      Match[]
 }
@@ -99,7 +79,6 @@ model MapSpawnPoint {
   position_z  Float
   order_index Int
   created_at  DateTime @default(now())
-
   map         Map      @relation(fields: [map_id], references: [id])
   teams       Team[]
 
@@ -116,34 +95,32 @@ model Task {
   is_active     Boolean  @default(true)
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
-
   matches       Match[]
 }
 
 model Match {
-  id                  String   @id @default(uuid())
-  lobby_code          String   @unique
-  created_by_user_id  String?
-  map_id              String
-  task_id             String
-  status              MatchStatus @default(WAITING)
-  min_players         Int      @default(2)
-  min_teams           Int      @default(2)
-  max_players         Int      @default(12)
-  seed                String
-  started_at          DateTime?
-  ended_at            DateTime?
-  winner_team_id      String?
-  settings            Json?
-  created_at          DateTime @default(now())
-  updated_at          DateTime @updatedAt
-
-  creator             User?         @relation("LobbyCreator", fields: [created_by_user_id], references: [id])
-  map                 Map           @relation(fields: [map_id], references: [id])
-  task                Task          @relation(fields: [task_id], references: [id])
-  teams               Team[]        @relation("MatchTeams")
-  winner_team         Team?         @relation("WinnerTeam", fields: [winner_team_id], references: [id])
-  match_players       MatchPlayer[]
+  id                 String        @id @default(uuid())
+  lobby_code         String        @unique
+  created_by_user_id String?
+  map_id             String
+  task_id            String
+  status             MatchStatus   @default(WAITING)
+  min_players        Int           @default(2)
+  min_teams          Int           @default(2)
+  max_players        Int           @default(12)
+  seed               String
+  started_at         DateTime?
+  ended_at           DateTime?
+  winner_team_id     String?
+  settings           Json?
+  created_at         DateTime      @default(now())
+  updated_at         DateTime      @updatedAt
+  creator            User?         @relation("LobbyCreator", fields: [created_by_user_id], references: [id])
+  map                Map           @relation(fields: [map_id], references: [id])
+  task               Task          @relation(fields: [task_id], references: [id])
+  winner_team        Team?         @relation("WinnerTeam", fields: [winner_team_id], references: [id])
+  match_players      MatchPlayer[]
+  teams              Team[]        @relation("MatchTeams")
 
   @@index([status])
   @@index([created_by_user_id])
@@ -152,20 +129,19 @@ model Match {
 }
 
 model Team {
-  id             String   @id @default(uuid())
+  id             String         @id @default(uuid())
   match_id       String
   name           String
   color          String?
   spawn_point_id String?
   placement      Int?
-  is_winner      Boolean  @default(false)
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
-
+  is_winner      Boolean        @default(false)
+  created_at     DateTime       @default(now())
+  updated_at     DateTime       @updatedAt
+  won_matches    Match[]        @relation("WinnerTeam")
+  match_players  MatchPlayer[]
   match          Match          @relation("MatchTeams", fields: [match_id], references: [id])
   spawn_point    MapSpawnPoint? @relation(fields: [spawn_point_id], references: [id])
-  match_players  MatchPlayer[]
-  won_matches    Match[]        @relation("WinnerTeam")
 
   @@index([match_id])
   @@index([spawn_point_id])
@@ -195,15 +171,30 @@ model MatchPlayer {
   left_at               DateTime?
   created_at            DateTime          @default(now())
   updated_at            DateTime          @updatedAt
-
-  match                 Match    @relation(fields: [match_id], references: [id])
-  team                  Team?    @relation(fields: [team_id], references: [id])
-  user                  User     @relation(fields: [user_id], references: [id])
-  role                  Role?    @relation(fields: [role_id], references: [id])
+  match                 Match             @relation(fields: [match_id], references: [id])
+  role                  Role?             @relation(fields: [role_id], references: [id])
+  team                  Team?             @relation(fields: [team_id], references: [id])
+  user                  User              @relation(fields: [user_id], references: [id])
 
   @@unique([match_id, user_id])
   @@index([match_id])
   @@index([team_id])
   @@index([user_id])
   @@index([role_id])
+}
+
+enum MatchStatus {
+  WAITING
+  COUNTDOWN
+  ACTIVE
+  FINISHED
+  CANCELLED
+}
+
+enum MatchPlayerStatus {
+  WAITING
+  ALIVE
+  DEAD
+  LEFT
+  DISCONNECTED
 }

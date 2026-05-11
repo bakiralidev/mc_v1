@@ -3,6 +3,8 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const { GAME_BALANCE } = require('./src/utils/gameBalance');
+
 
 const app = express();
 const server = http.createServer(app);
@@ -65,6 +67,35 @@ io.on('connection', (socket) => {
             matchStates[lobbyCode] = { players: {} };
         }
 
+        try {
+            // Fetch match players and their roles to initialize matchStates
+            const match = await prisma.match.findUnique({
+                where: { lobby_code: lobbyCode },
+                include: {
+                    match_players: {
+                        include: { role: true }
+                    }
+                }
+            });
+
+            if (match) {
+                match.match_players.forEach(mp => {
+                    if (mp.role && !matchStates[lobbyCode].players[mp.user_id]) {
+                        const roleKey = mp.role.key.toLowerCase();
+                        const roleStats = GAME_BALANCE.roles[roleKey];
+                        matchStates[lobbyCode].players[mp.user_id] = {
+                            hp: roleStats ? roleStats.hp : 100,
+                            maxHp: roleStats ? roleStats.hp : 100,
+                            role: roleKey,
+                            team_id: mp.team_id
+                        };
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching match players for socket initialization:', error);
+        }
+
         // Send current match state to the newly joined user
         socket.emit('match_state_sync', matchStates[lobbyCode]);
     });
@@ -76,9 +107,11 @@ io.on('connection', (socket) => {
         // Save position in memory for quick access
         if (matchStates[lobbyCode]) {
             if (!matchStates[lobbyCode].players[userId]) {
-                matchStates[lobbyCode].players[userId] = { hp: 100 };
+                // Fallback initialization if join_lobby didn't catch it
+                matchStates[lobbyCode].players[userId] = { hp: 100, maxHp: 100 };
             }
             matchStates[lobbyCode].players[userId].position = position;
+            matchStates[lobbyCode].players[userId].rotation = rotation;
         }
         
         socket.to(`lobby_${lobbyCode}`).emit('player_updated', { userId, position, rotation });
@@ -101,9 +134,15 @@ io.on('connection', (socket) => {
         const { lobbyCode, victimId, attackerId, damage } = data;
         
         if (!matchStates[lobbyCode]) matchStates[lobbyCode] = { players: {} };
-        if (!matchStates[lobbyCode].players[victimId]) matchStates[lobbyCode].players[victimId] = { hp: 100 };
+        if (!matchStates[lobbyCode].players[victimId]) {
+            matchStates[lobbyCode].players[victimId] = { hp: 100, maxHp: 100 };
+        }
         
         const playerState = matchStates[lobbyCode].players[victimId];
+        
+        // Prevent damage if already dead or matching team (if friendly fire is off)
+        if (playerState.hp <= 0) return;
+
         playerState.hp = Math.max(0, playerState.hp - damage);
 
         console.log(`Match ${lobbyCode}: Player ${victimId} took ${damage} damage. HP: ${playerState.hp}`);
@@ -113,6 +152,7 @@ io.on('connection', (socket) => {
             userId: victimId,
             attackerId,
             hp: playerState.hp,
+            maxHp: playerState.maxHp,
             damage
         });
 
@@ -155,6 +195,49 @@ io.on('connection', (socket) => {
     });
 
     // Maxsus qobiliyatlar (Skills)
+    socket.on('player_healed', async (data) => {
+        const { lobbyCode, victimId, healerId, amount } = data;
+
+        if (!matchStates[lobbyCode]) matchStates[lobbyCode] = { players: {} };
+        if (!matchStates[lobbyCode].players[victimId]) return;
+
+        const playerState = matchStates[lobbyCode].players[victimId];
+        if (playerState.hp <= 0) return; // Can't heal dead players
+
+        const oldHp = playerState.hp;
+        playerState.hp = Math.min(playerState.maxHp, playerState.hp + amount);
+        const actualHeal = playerState.hp - oldHp;
+
+        console.log(`Match ${lobbyCode}: Player ${victimId} healed by ${healerId}. HP: ${playerState.hp}`);
+
+        io.to(`lobby_${lobbyCode}`).emit('hp_update', {
+            userId: victimId,
+            healerId,
+            hp: playerState.hp,
+            maxHp: playerState.maxHp,
+            healAmount: actualHeal
+        });
+
+        if (actualHeal > 0 && healerId) {
+            try {
+                const match = await prisma.match.findUnique({ where: { lobby_code: lobbyCode } });
+                if (match) {
+                    await prisma.matchPlayer.update({
+                        where: { match_id_user_id: { match_id: match.id, user_id: healerId } },
+                        data: { healing_done: { increment: actualHeal } }
+                    });
+
+                    await prisma.playerStats.update({
+                        where: { user_id: healerId },
+                        data: { healing_done: { increment: actualHeal }, xp: { increment: Math.floor(actualHeal / 10) } }
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to update healing stats in DB:', error);
+            }
+        }
+    });
+
     socket.on('player_skill', (data) => {
         // data: { lobbyCode, userId, skillKey, params }
         const { lobbyCode, ...skillData } = data;

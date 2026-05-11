@@ -6,6 +6,8 @@ import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 import socket from '@/utils/socket';
 import VoxelCharacter from './VoxelCharacter';
+import { GAME_BALANCE } from '@/utils/gameBalance';
+import { BASE_MAZE_25 } from '@/utils/mazeLayout';
 
 interface PlayerProps {
   myUserId: string;
@@ -20,25 +22,27 @@ export default function Player({ myUserId, matchId, initialPos, roleId }: Player
   const [keys, setKeys] = useState<Record<string, boolean>>({});
   const [isMoving, setIsMoving] = useState(false);
   const [animation, setAnimation] = useState('idle');
-  const [hp, setHp] = useState(100);
-
-  const speed = 0.18;
-
-  const stats = useMemo(() => {
-    switch(roleId) {
-      case 'warrior': return { damage: 20, range: 2.5, cooldown: 600 };
-      case 'archer': return { damage: 12, range: 12, cooldown: 800 };
-      case 'mage': return { damage: 25, range: 10, cooldown: 1200 }; // Higher damage for AOE
-      case 'healer': return { damage: -25, range: 6, cooldown: 1200 };
-      default: return { damage: 10, range: 3, cooldown: 500 };
-    }
+  const roleStats = useMemo(() => {
+    const key = roleId.toLowerCase() as keyof typeof GAME_BALANCE.roles;
+    return GAME_BALANCE.roles[key] || GAME_BALANCE.roles.warrior;
   }, [roleId]);
+
+  const [hp, setHp] = useState(roleStats.hp);
+  const [maxHp, setMaxHp] = useState(roleStats.hp);
+
+  const hpRatio = useMemo(() => {
+    const val = hp / (maxHp || 1);
+    return isNaN(val) ? 0 : Math.max(0.001, Math.min(1, val));
+  }, [hp, maxHp]);
+
+  const speed = roleStats.speed;
 
   const lastAttack = useRef(0);
 
   const handleAttack = (event?: any) => {
     const now = performance.now();
-    if (now - lastAttack.current < stats.cooldown || hp <= 0) return;
+    const cooldown = roleStats.mainAttack.cooldownMs;
+    if (now - lastAttack.current < cooldown || hp <= 0) return;
 
     // Mage special fireball targeting
     if (roleId === 'mage' && event instanceof MouseEvent) {
@@ -84,13 +88,22 @@ export default function Player({ myUserId, matchId, initialPos, roleId }: Player
     scene.traverse((obj) => {
       if (obj.name === 'remote_player') {
         const dist = groupRef.current!.position.distanceTo(obj.position);
-        if (dist <= stats.range) {
-          socket.emit('player_damaged', {
-            lobbyCode: matchId,
-            victimId: obj.userData.userId,
-            attackerId: myUserId,
-            damage: stats.damage
-          });
+        if (dist <= roleStats.mainAttack.range) {
+          if (roleId === 'healer') {
+            socket.emit('player_healed', {
+              lobbyCode: matchId,
+              victimId: obj.userData.userId,
+              healerId: myUserId,
+              amount: roleStats.skill.healAmount // Using healAmount from skill for now or main attack
+            });
+          } else {
+            socket.emit('player_damaged', {
+              lobbyCode: matchId,
+              victimId: obj.userData.userId,
+              attackerId: myUserId,
+              damage: roleStats.mainAttack.damage
+            });
+          }
         }
       }
     });
@@ -108,13 +121,11 @@ export default function Player({ myUserId, matchId, initialPos, roleId }: Player
 
     const handleHpUpdate = (hpData: any) => {
       if (hpData.userId === myUserId) {
-        setHp(prev => {
-          const newHp = Math.max(0, prev - (hpData.damage || 0));
-          if (newHp <= 0 && prev > 0) {
-            socket.emit('player_died', { lobbyCode: matchId, victimId: myUserId, attackerId: hpData.attackerId });
-          }
-          return newHp;
-        });
+        setHp(hpData.hp);
+        setMaxHp(hpData.maxHp);
+        if (hpData.hp <= 0) {
+           socket.emit('player_died', { lobbyCode: matchId, victimId: myUserId, attackerId: hpData.attackerId });
+        }
       }
     };
 
@@ -131,7 +142,7 @@ export default function Player({ myUserId, matchId, initialPos, roleId }: Player
     };
   }, [roleId, matchId, myUserId, hp]);
 
-  useFrame(() => {
+  useFrame((state, delta) => {
     if (!groupRef.current || hp <= 0) return;
 
     const move = new THREE.Vector3(0, 0, 0);
@@ -143,8 +154,26 @@ export default function Player({ myUserId, matchId, initialPos, roleId }: Player
     setIsMoving(move.length() > 0);
 
     if (move.length() > 0) {
-      move.normalize().multiplyScalar(speed);
-      groupRef.current.position.add(move);
+      move.normalize().multiplyScalar(speed * delta);
+      
+      const currentPos = groupRef.current.position.clone();
+      const nextX = currentPos.x + move.x;
+      const nextZ = currentPos.z + move.z;
+
+      const isWall = (x: number, z: number) => {
+        const gx = Math.round(x / 4);
+        const gz = Math.round(z / 4);
+        return BASE_MAZE_25[gz]?.[gx] === 1;
+      };
+
+      // Collision with buffer
+      const buffer = 0.4;
+      let canMoveX = !isWall(nextX + (move.x > 0 ? buffer : -buffer), currentPos.z);
+      let canMoveZ = !isWall(currentPos.x, nextZ + (move.z > 0 ? buffer : -buffer));
+
+      if (canMoveX) groupRef.current.position.x = nextX;
+      if (canMoveZ) groupRef.current.position.z = nextZ;
+
       const angle = Math.atan2(move.x, move.z);
       groupRef.current.rotation.y = THREE.MathUtils.lerp(groupRef.current.rotation.y, angle, 0.2);
 
@@ -157,13 +186,16 @@ export default function Player({ myUserId, matchId, initialPos, roleId }: Player
       });
     }
 
+    // Camera follow according to loyihadagi_olchamlar.md
+    // Camera distance: 6, height: 3.2
+    const camConfig = GAME_BALANCE.map; // This should be in player or camera config
     const targetCamPos = new THREE.Vector3(
-      groupRef.current.position.x + 4, 
-      groupRef.current.position.y + 6, 
-      groupRef.current.position.z + 4
+      groupRef.current.position.x, 
+      groupRef.current.position.y + 3.2, 
+      groupRef.current.position.z + 6
     );
-    camera.position.lerp(targetCamPos, 0.08);
-    camera.lookAt(groupRef.current.position);
+    camera.position.lerp(targetCamPos, 0.1);
+    camera.lookAt(groupRef.current.position.x, groupRef.current.position.y + 1, groupRef.current.position.z);
   });
 
   const getRoleColor = () => {
@@ -186,10 +218,12 @@ export default function Player({ myUserId, matchId, initialPos, roleId }: Player
             <planeGeometry args={[1, 0.1]} />
             <meshBasicMaterial color="#333" />
          </mesh>
-         <mesh position={[-(1 - hp/100)/2, 0, 0.01]}>
-            <planeGeometry args={[hp/100, 0.1]} />
-            <meshBasicMaterial color={hp > 30 ? '#22c55e' : '#ef4444'} />
-         </mesh>
+         {hpRatio > 0.001 && (
+           <mesh position={[-(1 - hpRatio)/2, 0, 0.01]}>
+              <planeGeometry args={[hpRatio, 0.1]} />
+              <meshBasicMaterial color={hpRatio > 0.3 ? '#22c55e' : '#ef4444'} />
+           </mesh>
+         )}
       </group>
 
       <mesh position={[0, -0.4, 0]} rotation={[-Math.PI/2, 0, 0]}>
