@@ -297,6 +297,7 @@ io.on('connection', (socket) => {
             matchStates[lobbyCode].players[userId].position = position;
             matchStates[lobbyCode].players[userId].rotation = rotation;
         }
+        // console.log(`Player ${userId} moved to ${position} in lobby ${lobbyCode}`);
         io.to(`lobby_${lobbyCode}`).emit('player_updated', { userId, position, rotation });
     });
 

@@ -412,8 +412,13 @@ const startMatch = async (req, res) => {
         });
         console.log('Match updated in DB.');
 
+        const spawnPoints = match.map.spawn_points || [];
+        if (spawnPoints.length === 0) {
+            return res.status(400).json({ message: 'Map has no spawn points defined' });
+        }
+
         const playerStartData = await Promise.all(match.match_players.map(async (player, index) => {
-            const spawnPoint = match.map.spawn_points[index % match.map.spawn_points.length];
+            const spawnPoint = spawnPoints[index % spawnPoints.length];
             const spawnPos = [spawnPoint.position_x, spawnPoint.position_y, spawnPoint.position_z];
             
             // Save to DB so it persists on fetch

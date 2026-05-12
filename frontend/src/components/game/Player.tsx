@@ -120,10 +120,20 @@ export default function Player({ myUserId, matchId, initialPos, roleId, grid }: 
     const handleMouseDown = (e: MouseEvent) => {
       if (e.button === 0) {
         handleAttack(e);
-        try {
-          if (gl.domElement.requestPointerLock) gl.domElement.requestPointerLock();
-        } catch (err) {
-          console.warn("Pointer lock request failed:", err);
+        // Only request lock if not already locked
+        if (document.pointerLockElement !== gl.domElement) {
+          try {
+            const promise = gl.domElement.requestPointerLock() as any;
+            if (promise && promise.catch) {
+              promise.catch((err: any) => {
+                if (err.name !== 'SecurityError') {
+                  console.warn("Pointer lock request failed:", err);
+                }
+              });
+            }
+          } catch (err) {
+            console.warn("Pointer lock request sync failed:", err);
+          }
         }
       }
     };
